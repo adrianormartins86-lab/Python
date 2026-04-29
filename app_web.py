@@ -24,7 +24,7 @@ st.set_page_config(
 col1, col2 = st.columns([1, 5])
 with col1:
     try:
-        st.image(URL_ICONE, width=80)
+        st.image(URL_ICONE, width=180)
     except:
         st.write("🐦") # Backup caso a imagem falhe
 
