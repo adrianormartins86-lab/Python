@@ -29,7 +29,7 @@ with col1:
         st.write("🐦") # Backup caso a imagem falhe
 
 with col2:
-    st.title("Registro de Visitas")
+    st.title("Visita Promotores")
 
 st.markdown("---")
 
