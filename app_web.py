@@ -68,36 +68,3 @@ if df_forn is not None:
                     st.error(f"Erro ao salvar: {e}")
 else:
     st.info("Aguardando arquivo de fornecedores no GitHub...")
-if forn_sel != "Escolha...":
-    if st.button("Confirmar Check-in", use_container_width=True):
-        try:
-            fuso_br = pytz.timezone('America/Sao_Paulo')
-            agora = datetime.now(fuso_br).strftime("%d/%m/%Y %H:%M:%S")
-            
-            # 1. Lê a planilha atual
-            df_existente = conn.read() 
-            
-            # 2. Cria o novo registro com nomes de colunas IDENTICOS aos da planilha
-            novo_registro = pd.DataFrame([{
-                "Data": agora, 
-                "Loja": loja_sel, 
-                "Fornecedor": forn_sel,
-                "Observacao": obs
-            }])
-            
-            # 3. Garante que o novo registro tenha as mesmas colunas da planilha existente
-            # Isso evita a criação de colunas duplicadas por erro de digitação
-            df_final = pd.concat([df_existente, novo_registro], ignore_index=True)
-            
-            # 4. Envia de volta
-            conn.update(data=df_final)
-            
-            st.success(f"✅ Registrado com sucesso!")
-            st.balloons()
-        except Exception as e:
-            st.error(f"Erro ao salvar: {e}")
-
-
-
-
-
