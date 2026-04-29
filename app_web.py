@@ -8,7 +8,7 @@ import os
 # Configuração da página
 st.set_page_config(page_title="Check-in Promotores", layout="centered", page_icon="📲")
 
-st.title("📲 Molicenter - Registro Promotores")
+st.title("📲 Registro de Visitas Promotores")
 
 # Conexão com Google Sheets
 conn = st.connection("gsheets", type=GSheetsConnection)
