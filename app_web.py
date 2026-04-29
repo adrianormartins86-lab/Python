@@ -44,7 +44,7 @@ if df_forn is not None:
                 
                 # 2. Ler os dados atuais da Planilha Google para não sobrescrever
                 # (Troque a URL abaixo pela URL da sua planilha)
-                url_planilha = "COLE_AQUI_O_LINK_DA_SUA_PLANILHA"
+                url_planilha = "https://docs.google.com/spreadsheets/d/1v9yVA_CtgpVqQUD2nMvxcBcHu-5dJ68BSykuQ3NuafY/edit?gid=0#gid=0"
                 
                 try:
                     df_existente = conn.read(spreadsheet=url_planilha)
