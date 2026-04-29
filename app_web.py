@@ -8,7 +8,7 @@ st.set_page_config(page_title="Check-in Promotores", layout="centered")
 
 st.title("📲 Registro de Visitas")
 
-# 1. Ligação simplificada (ele vai buscar a URL direto ao Secret)
+# Conexão com Google Sheets (usando os Secrets que você já salvou)
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 @st.cache_data
@@ -26,7 +26,7 @@ def carregar_fornecedores():
 df_forn = carregar_fornecedores()
 
 if df_forn is not None:
-    # Lógica de colunas (2ª e Última)
+    # Lógica de colunas: 2ª (Empresa) e Última (Loja)
     col_empresa = df_forn.columns[1]
     col_loja = df_forn.columns[-1]
 
@@ -37,24 +37,34 @@ if df_forn is not None:
         filtro = df_forn[df_forn[col_loja].astype(str) == loja_sel]
         fornecedores = sorted(filtro[col_empresa].dropna().astype(str).unique().tolist())
         forn_sel = st.selectbox("2. Selecione o Fornecedor:", ["Escolha..."] + fornecedores)
+        
+        # --- NOVO CAMPO DE OBSERVAÇÃO ---
+        obs = st.text_input("3. Observação (Opcional):", placeholder="Ex: Falta de estoque, gôndola cheia...")
 
         if forn_sel != "Escolha...":
             if st.button("Confirmar Check-in", use_container_width=True):
                 agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                 
                 try:
-                    # Lê os dados atuais da Google Sheet definida no Secret
+                    # Lê os dados atuais da Google Sheet
                     df_existente = conn.read() 
                     
-                    novo_dado = pd.DataFrame([{"Data": agora, "Loja": loja_sel, "Fornecedor": forn_sel}])
+                    # Cria o novo registro incluindo a observação
+                    novo_dado = pd.DataFrame([{
+                        "Data": agora, 
+                        "Loja": loja_sel, 
+                        "Fornecedor": forn_sel,
+                        "Observacao": obs  # Salva o que foi digitado
+                    }])
+                    
                     df_final = pd.concat([df_existente, novo_dado], ignore_index=True)
                     
-                    # Atualiza a folha de cálculo
+                    # Atualiza a planilha na nuvem
                     conn.update(data=df_final)
                     
-                    st.success(f"✅ Registado na Nuvem: {forn_sel}")
+                    st.success(f"✅ Registrado: {forn_sel}")
                     st.balloons()
                 except Exception as e:
-                    st.error(f"Erro de Conexão: Verifique se a planilha está como 'Editor' para todos com o link. (Detalhe: {e})")
+                    st.error(f"Erro ao salvar: {e}")
 else:
-    st.info("Aguardando ficheiro de fornecedores...")
+    st.info("Aguardando arquivo de fornecedores no GitHub...")
