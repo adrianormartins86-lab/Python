@@ -5,53 +5,60 @@ from datetime import datetime
 
 st.set_page_config(page_title="Check-in Promotores", layout="centered")
 
-# Estilização básica
 st.title("📲 Registro de Visitas")
-st.markdown("---")
 
+# Função com cache para não travar o app
+@st.cache_data
 def carregar_dados():
-    arquivo = 'fornecedores.xlsx'
-    if os.path.exists(arquivo):
+    # Tenta achar o arquivo independente de maiúsculas/minúsculas na pasta
+    arquivo_alvo = 'fornecedores.xlsx'
+    caminho_real = None
+    
+    for f in os.listdir('.'):
+        if f.lower() == arquivo_alvo:
+            caminho_real = f
+            break
+            
+    if caminho_real:
         try:
-            df = pd.read_excel(arquivo).dropna(how='all')
+            # Forçamos o motor openpyxl que você colocou no requirements.txt
+            df = pd.read_excel(caminho_real, engine='openpyxl').dropna(how='all')
+            # Limpeza das colunas
+            df.columns = [str(col).strip() for col in df.columns]
             return df
         except Exception as e:
-            st.error(f"Erro ao ler Excel: {e}")
+            st.error(f"Erro ao ler o Excel: {e}")
     return None
 
 df = carregar_dados()
 
 if df is not None:
-    # Identifica as colunas por posição
-    col_empresa = df.columns[1]  # 2ª coluna
-    col_loja = df.columns[-1]     # Última coluna
+    # Usamos a lógica de posição que você pediu: 2ª coluna e Última
+    col_empresa = df.columns[1]  
+    col_loja = df.columns[-1]    
 
-    # 1. Seleção da Loja
     lojas = sorted(df[col_loja].dropna().astype(str).unique().tolist())
-    loja_sel = st.selectbox("Selecione a Unidade (Loja):", ["Escolha..."] + lojas)
+    loja_sel = st.selectbox("1. Selecione a Loja:", ["Escolha..."] + lojas)
 
     if loja_sel != "Escolha...":
-        # 2. Seleção do Fornecedor filtrado
         filtro = df[df[col_loja].astype(str) == loja_sel]
         fornecedores = sorted(filtro[col_empresa].dropna().astype(str).unique().tolist())
-        forn_sel = st.selectbox("Selecione o Fornecedor:", ["Escolha..."] + fornecedores)
+        forn_sel = st.selectbox("2. Selecione o Fornecedor:", ["Escolha..."] + fornecedores)
 
         if forn_sel != "Escolha...":
             if st.button("Confirmar Check-in", use_container_width=True):
-                # Registro dos dados
                 agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                novo_registro = pd.DataFrame([{'Data': agora, 'Loja': loja_sel, 'Fornecedor': forn_sel}])
+                # Criamos o registro
+                registro = pd.DataFrame([{'Data': agora, 'Loja': loja_sel, 'Fornecedor': forn_sel}])
                 
+                # No Streamlit Cloud, salvamos temporariamente
                 arquivo_saida = 'banco_de_dados.csv'
-                # Salva no arquivo CSV
-                novo_registro.to_csv(arquivo_saida, mode='a', index=False, 
-                                   header=not os.path.exists(arquivo_saida), 
-                                   sep=';', encoding='utf-8-sig')
+                registro.to_csv(arquivo_saida, mode='a', index=False, 
+                               header=not os.path.exists(arquivo_saida), 
+                               sep=';', encoding='utf-8-sig')
                 
-                st.success(f"✅ Check-in de {forn_sel} realizado com sucesso!")
+                st.success(f"✅ Registrado: {forn_sel}")
                 st.balloons()
 else:
-    st.warning("⚠️ Arquivo 'fornecedores.xlsx' não encontrado na pasta.")
-
-st.markdown("---")
-st.caption("Sistema de Controle de Promotores v2.0")
+    st.error("⚠️ O arquivo 'fornecedores.xlsx' não foi encontrado no seu GitHub.")
+    st.info(f"Arquivos detectados na pasta: {os.listdir('.')}")
