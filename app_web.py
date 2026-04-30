@@ -47,7 +47,7 @@ df_forn = carregar_fornecedores()
 if df_forn is not None:
     # --- MAPEAMENTO AJUSTADO ---
     col_empresa = df_forn.columns[1]    # Coluna B
-    col_frequencia = df_forn.columns[5]  # AJUSTE: Coluna G (Frequência de Visita)
+    col_frequencia = df_forn.columns[6]  # AJUSTE: Coluna G (Frequência de Visita)
     col_loja = df_forn.columns[-1]      # Última Coluna (Loja)
 
     # 1. Seleção da Loja
