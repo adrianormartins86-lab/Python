@@ -24,7 +24,7 @@ def upload_para_drive(arquivo_foto, nome_arquivo):
         drive = GoogleDrive(gauth)
         
         # Substitua pelo ID da sua pasta no Google Drive
-        ID_PASTA_DRIVE = "SEU_ID_DA_PASTA_AQUI" 
+        ID_PASTA_DRIVE = "https://drive.google.com/drive/folders/1VSrgXLR9nKtVclapeZWHkV_ojK55_JtO?usp=drive_link" 
         
         file_drive = drive.CreateFile({
             'title': nome_arquivo,
