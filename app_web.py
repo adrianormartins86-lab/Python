@@ -15,16 +15,20 @@ URL_ICONE = f"https://raw.githubusercontent.com/{USER_GITHUB}/{REPO_GITHUB}/main
 
 st.set_page_config(page_title="Check-in Promotores", layout="centered", page_icon=URL_ICONE)
 
-# --- FUNÇÃO DE UPLOAD PARA O GOOGLE DRIVE (VERSÃO CORRIGIDA) ---
+# --- FUNÇÃO DE UPLOAD PARA O GOOGLE DRIVE (AJUSTADA PARA SECRETS) ---
 def upload_para_drive(arquivo_foto, nome_arquivo):
-    """Faz o upload para o Drive e retorna o link direto para o Power BI"""
+    """Faz o upload para o Drive usando as Secrets e retorna o link direto"""
     try:
-        # Inicializa a autenticação do PyDrive
         gauth = GoogleAuth()
+        scope = ['https://www.googleapis.com/auth/drive']
+        
+        # Autenticação via Conta de Serviço usando o bloco [gdrive] das Secrets
+        gauth.auth_method = 'service'
+        gauth.credentials = gauth.Credentials.from_json_dict(st.secrets["gdrive"], scope)
         drive = GoogleDrive(gauth)
         
-        # Substitua pelo ID da sua pasta no Google Drive
-        ID_PASTA_DRIVE = "https://drive.google.com/drive/folders/1VSrgXLR9nKtVclapeZWHkV_ojK55_JtO?usp=drive_link" 
+        # ID extraído da sua URL: 1VSrgXLR9nKtVclapeZWHkV_ojK55_JtO
+        ID_PASTA_DRIVE = "1VSrgXLR9nKtVclapeZWHkV_ojK55_JtO" 
         
         file_drive = drive.CreateFile({
             'title': nome_arquivo,
@@ -32,7 +36,6 @@ def upload_para_drive(arquivo_foto, nome_arquivo):
             'mimeType': 'image/jpeg'
         })
         
-        # Ajuste para ler os bytes da foto sem erro de codificação
         arquivo_foto.seek(0)
         file_drive.content = arquivo_foto  
         
@@ -105,19 +108,17 @@ if df_forn is not None:
             # 4. Botão de Confirmação
             if st.button("Confirmar Check-in", use_container_width=True):
                 try:
-                    # Horário de Brasília
                     fuso_br = pytz.timezone('America/Sao_Paulo')
                     agora = datetime.now(fuso_br).strftime("%d/%m/%Y %H:%M:%S")
                     
                     link_final_foto = "Sem foto"
                     
-                    # Processamento da foto e upload
                     if foto:
                         nome_img = f"checkin_{forn_sel}_{datetime.now(fuso_br).strftime('%Y%m%d_%H%M%S')}.jpg"
                         with st.spinner('Enviando foto para o Google Drive...'):
                             link_final_foto = upload_para_drive(foto, nome_img)
                     
-                    # Leitura e atualização do Google Sheets
+                    # Atualização do Google Sheets
                     df_existente = conn.read(ttl=0) 
                     
                     novo_dado = pd.DataFrame([{
@@ -126,7 +127,7 @@ if df_forn is not None:
                         "Fornecedor": forn_sel,
                         "Frequencia": frequencia,
                         "Observacao": obs,
-                        "Arquivo_Foto": link_final_foto # Salva o link do Drive aqui
+                        "Arquivo_Foto": link_final_foto 
                     }])
                     
                     df_final = pd.concat([df_existente, novo_dado], ignore_index=True)
