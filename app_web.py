@@ -4,9 +4,8 @@ from streamlit_gsheets import GSheetsConnection
 from datetime import datetime
 import pytz
 import os
-from pydrive2.auth import GoogleAuth
-from pydrive2.drive import GoogleDrive
-from oauth2client.service_account import ServiceAccountCredentials
+import requests
+import base64
 
 # --- CONFIGURAÇÃO E LOGO ---
 USER_GITHUB = "adrianormartins86-lab"
@@ -16,40 +15,32 @@ URL_ICONE = f"https://raw.githubusercontent.com/{USER_GITHUB}/{REPO_GITHUB}/main
 
 st.set_page_config(page_title="Check-in Promotores", layout="centered", page_icon=URL_ICONE)
 
-# --- FUNÇÃO DE UPLOAD PARA O GOOGLE DRIVE ---
-def upload_para_drive(arquivo_foto, nome_arquivo):
-    """Faz o upload contornando o erro de cota de Conta de Serviço"""
+# --- FUNÇÃO DE UPLOAD PARA O IMGBB (SOLUÇÃO DEFINITIVA) ---
+def upload_para_imgbb(arquivo_foto):
+    """Faz o upload para o ImgBB e retorna o link direto da imagem"""
     try:
-        scope = ['https://www.googleapis.com/auth/drive']
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gdrive"], scope)
+        api_key = st.secrets["imgbb"]["api_key"]
+        url = "https://api.imgbb.com/1/upload"
         
-        gauth = GoogleAuth()
-        gauth.credentials = creds
-        drive = GoogleDrive(gauth)
+        # Converte a imagem para Base64 (formato que a API aceita)
+        foto_base64 = base64.b64encode(arquivo_foto.getvalue()).decode('utf-8')
         
-        # ID da sua pasta oficial
-        ID_PASTA_DRIVE = "1VSrgXLR9nKtVclapeZWHkV_ojK55_JtO" 
-        
-        # AJUSTE: Definimos o arquivo com metadados simplificados para evitar bloqueio de cota
-        file_metadata = {
-            'title': nome_arquivo,
-            'parents': [{'id': ID_PASTA_DRIVE}],
-            'mimeType': 'image/jpeg'
+        payload = {
+            "key": api_key,
+            "image": foto_base64,
         }
         
-        file_drive = drive.CreateFile(file_metadata)
+        response = requests.post(url, payload)
+        resultado = response.json()
         
-        # Garante a leitura binária correta
-        arquivo_foto.seek(0)
-        file_drive.content = arquivo_foto  
-        
-        # Upload com suporte a drives compartilhados (ajuda na cota)
-        file_drive.Upload(param={'supportsAllDrives': True})
-        
-        # Retorna o link para o Power BI
-        return file_drive['webContentLink']
+        if resultado['success']:
+            # Retorna a URL direta da imagem (perfeita para o Power BI)
+            return resultado['data']['url']
+        else:
+            st.error(f"Erro na API do ImgBB: {resultado['error']['message']}")
+            return "Erro no Upload"
     except Exception as e:
-        st.error(f"⚠️ Erro técnico no upload para o Drive: {e}")
+        st.error(f"⚠️ Erro ao conectar com ImgBB: {e}")
         return "Erro no Upload"
 
 # --- CABEÇALHO ---
@@ -110,13 +101,10 @@ if df_forn is not None:
                 else:
                     try:
                         fuso_br = pytz.timezone('America/Sao_Paulo')
-                        agora_dt = datetime.now(fuso_br)
-                        agora_str = agora_dt.strftime("%d/%m/%Y %H:%M:%S")
+                        agora_str = datetime.now(fuso_br).strftime("%d/%m/%Y %H:%M:%S")
                         
-                        nome_img = f"checkin_{forn_sel}_{agora_dt.strftime('%Y%m%d_%H%M%S')}.jpg"
-                        
-                        with st.spinner('🚀 Enviando foto e registrando no sistema...'):
-                            link_final_foto = upload_para_drive(foto, nome_img)
+                        with st.spinner('🚀 Enviando imagem e salvando check-in...'):
+                            link_final_foto = upload_para_imgbb(foto)
                         
                         if link_final_foto != "Erro no Upload":
                             df_existente = conn.read(ttl=0) 
@@ -136,7 +124,7 @@ if df_forn is not None:
                             st.success(f"✅ Registrado com sucesso!")
                             st.balloons()
                         else:
-                            st.error("❌ Falha no upload da foto. O registro não foi salvo.")
+                            st.error("❌ Falha no upload. O registro não foi salvo.")
                             
                     except Exception as e:
                         st.error(f"Erro ao salvar dados: {e}")
