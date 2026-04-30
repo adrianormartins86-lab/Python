@@ -15,37 +15,36 @@ URL_ICONE = f"https://raw.githubusercontent.com/{USER_GITHUB}/{REPO_GITHUB}/main
 
 st.set_page_config(page_title="Check-in Promotores", layout="centered", page_icon=URL_ICONE)
 
-# --- FUNÇÃO DE UPLOAD PARA O GOOGLE DRIVE ---
+# --- FUNÇÃO DE UPLOAD PARA O GOOGLE DRIVE (VERSÃO CORRIGIDA) ---
 def upload_para_drive(arquivo_foto, nome_arquivo):
     """Faz o upload para o Drive e retorna o link direto para o Power BI"""
     try:
-        # Autenticação (Requer arquivo settings.yaml ou credentials configuradas)
+        # Inicializa a autenticação do PyDrive
         gauth = GoogleAuth()
         drive = GoogleDrive(gauth)
         
-        # ID da pasta 'Fotos_Checkin' que você criou no seu Drive
-        ID_PASTA_DRIVE = "https://drive.google.com/drive/folders/1VSrgXLR9nKtVclapeZWHkV_ojK55_JtO?usp=drive_link" 
+        # Substitua pelo ID da sua pasta no Google Drive
+        ID_PASTA_DRIVE = "SEU_ID_DA_PASTA_AQUI" 
         
         file_drive = drive.CreateFile({
             'title': nome_arquivo,
-            'parents': [{'id': ID_PASTA_DRIVE}]
+            'parents': [{'id': ID_PASTA_DRIVE}],
+            'mimeType': 'image/jpeg'
         })
         
-        # O Streamlit file_uploader retorna um BytesIO, precisamos ler o conteúdo
-        file_drive.SetContentString(arquivo_foto.getvalue()) # Para arquivos binários use SetContentFile se for local
-        # Correção para binários no Streamlit:
+        # Ajuste para ler os bytes da foto sem erro de codificação
         arquivo_foto.seek(0)
-        file_drive.content = arquivo_foto
+        file_drive.content = arquivo_foto  
         
         file_drive.Upload()
         
-        # Gera o link de visualização direta (webContentLink) para o Power BI
+        # Retorna o link de visualização direta para usar no Power BI
         return file_drive['webContentLink']
     except Exception as e:
         st.error(f"Erro no upload para o Drive: {e}")
         return "Erro no Upload"
 
-# Cabeçalho
+# --- CABEÇALHO ---
 col1, col2 = st.columns([1, 5])
 with col1:
     try: st.image(URL_ICONE, width=100)
@@ -55,7 +54,7 @@ with col2:
 
 st.markdown("---")
 
-# --- CONEXÃO ---
+# --- CONEXÃO E CARREGAMENTO ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 @st.cache_data
@@ -73,11 +72,14 @@ def carregar_fornecedores():
 df_forn = carregar_fornecedores()
 
 if df_forn is not None:
+    # Mapeamento de colunas (B=1, G=6, Última=Loja)
     col_empresa = df_forn.columns[1]  
     col_frequencia = df_forn.columns[6] 
     col_loja = df_forn.columns[-1]    
 
-    loja_sel = st.selectbox("1. Selecione a Loja:", ["Escolha..."] + sorted(df_forn[col_loja].dropna().astype(str).unique().tolist()))
+    # 1. Seleção da Loja
+    lojas = sorted(df_forn[col_loja].dropna().astype(str).unique().tolist())
+    loja_sel = st.selectbox("1. Selecione a Loja:", ["Escolha..."] + lojas)
 
     if loja_sel != "Escolha...":
         filtro = df_forn[df_forn[col_loja].astype(str) == loja_sel]
@@ -85,31 +87,37 @@ if df_forn is not None:
         forn_sel = st.selectbox("2. Selecione o Fornecedor:", ["Escolha..."] + fornecedores)
 
         if forn_sel != "Escolha...":
+            # Exibição da Frequência (TER/QUI/SAB...)
             dados_sel = filtro[filtro[col_empresa] == forn_sel]
             frequencia = dados_sel[col_frequencia].iloc[0]
             st.info(f"📅 **Frequência Programada:** {frequencia}")
             
-            obs = st.text_input("3. Observação (Opcional):")
+            # 2. Observações
+            obs = st.text_input("3. Observação (Opcional):", placeholder="Ex: Gôndola organizada...")
 
+            # 3. Upload de Foto
             st.markdown("### 📸 Registro Fotográfico")
             foto = st.file_uploader("Selecione ou tire uma foto", type=["jpg", "jpeg", "png"])
             
             if foto:
                 st.image(foto, caption="Prévia da foto", width=200)
 
+            # 4. Botão de Confirmação
             if st.button("Confirmar Check-in", use_container_width=True):
                 try:
+                    # Horário de Brasília
                     fuso_br = pytz.timezone('America/Sao_Paulo')
                     agora = datetime.now(fuso_br).strftime("%d/%m/%Y %H:%M:%S")
                     
                     link_final_foto = "Sem foto"
                     
-                    # Se tiver foto, faz o upload e pega o link
+                    # Processamento da foto e upload
                     if foto:
                         nome_img = f"checkin_{forn_sel}_{datetime.now(fuso_br).strftime('%Y%m%d_%H%M%S')}.jpg"
                         with st.spinner('Enviando foto para o Google Drive...'):
                             link_final_foto = upload_para_drive(foto, nome_img)
                     
+                    # Leitura e atualização do Google Sheets
                     df_existente = conn.read(ttl=0) 
                     
                     novo_dado = pd.DataFrame([{
@@ -118,7 +126,7 @@ if df_forn is not None:
                         "Fornecedor": forn_sel,
                         "Frequencia": frequencia,
                         "Observacao": obs,
-                        "Arquivo_Foto": link_final_foto # AGORA SALVA O LINK CLICÁVEL
+                        "Arquivo_Foto": link_final_foto # Salva o link do Drive aqui
                     }])
                     
                     df_final = pd.concat([df_existente, novo_dado], ignore_index=True)
