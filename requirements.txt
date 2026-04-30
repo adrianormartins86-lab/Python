@@ -4,3 +4,4 @@ openpyxl
 st-gsheets-connection
 pytz
 pydrive2
+oauth2client
