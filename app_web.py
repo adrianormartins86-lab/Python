@@ -45,9 +45,9 @@ def carregar_fornecedores():
 df_forn = carregar_fornecedores()
 
 if df_forn is not None:
-    # Mapeamento de colunas baseado na sua base
-    col_empresa = df_forn.columns[1]   # Coluna B
-    col_frequencia = df_forn.columns[6] # Coluna G (Frequência)
+    # Mapeamento CORRIGIDO baseado na sua planilha
+    col_empresa = df_forn.columns[1]   # Coluna B (Fornecedor)
+    col_frequencia = df_forn.columns[5] # Coluna G (Dias da Semana - TER/QUI)
     col_loja = df_forn.columns[-1]     # Última Coluna (Loja)
 
     # 1. Seleção da Loja
@@ -60,7 +60,7 @@ if df_forn is not None:
         forn_sel = st.selectbox("2. Selecione o Fornecedor:", ["Escolha..."] + fornecedores)
 
         if forn_sel != "Escolha...":
-            # --- FREQUÊNCIA APENAS NO MENU (INFORMATIVO) ---
+            # --- EXIBIÇÃO CORRETA DA FREQUÊNCIA (TER/QUI) ---
             dados_sel = filtro[filtro[col_empresa] == forn_sel]
             frequencia_info = dados_sel[col_frequencia].iloc[0]
             st.info(f"📅 **Frequência de Visita:** {frequencia_info}")
@@ -71,7 +71,7 @@ if df_forn is not None:
             foto = st.file_uploader("4. Tire uma foto ou anexe", type=["jpg", "jpeg", "png"])
             
             if foto:
-                st.image(foto, caption="Versão para envio", width=200)
+                st.image(foto, caption="Foto selecionada", width=200)
 
             # 5. BOTÃO DE CONFIRMAÇÃO
             if st.button("Confirmar Check-in", use_container_width=True):
@@ -82,21 +82,20 @@ if df_forn is not None:
                     
                     nome_arquivo_foto = "Sem foto"
                     
-                    # Salva a foto fisicamente na pasta do servidor/computador
                     if foto is not None:
                         nome_arquivo_foto = f"{agora_dt.strftime('%Y%m%d_%H%M%S')}_{forn_sel}.jpg".replace(" ", "_")
                         caminho_completo = os.path.join("fotos_checkin", nome_arquivo_foto)
                         with open(caminho_completo, "wb") as f:
                             f.write(foto.getbuffer())
                     
-                    # Lógica de Exportação (A Frequência NÃO entra aqui)
+                    # Envio para o Sheets (SEM a coluna de frequência)
                     df_existente = conn.read(ttl=0) 
                     novo_dado = pd.DataFrame([{
                         "Data": agora_str, 
                         "Loja": loja_sel, 
                         "Fornecedor": forn_sel,
                         "Observacao": obs,
-                        "Foto_Ref": nome_arquivo_foto # Salva apenas o nome para conferência
+                        "Foto_Ref": nome_arquivo_foto 
                     }])
                     
                     df_final = pd.concat([df_existente, novo_dado], ignore_index=True)
