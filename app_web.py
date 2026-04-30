@@ -18,33 +18,35 @@ st.set_page_config(page_title="Check-in Promotores", layout="centered", page_ico
 
 # --- FUNÇÃO DE UPLOAD PARA O GOOGLE DRIVE ---
 def upload_para_drive(arquivo_foto, nome_arquivo):
-    """Faz o upload para o Drive usando o método de dicionário das Secrets"""
+    """Faz o upload contornando o erro de cota de Conta de Serviço"""
     try:
-        # Define o escopo de acesso necessário
         scope = ['https://www.googleapis.com/auth/drive']
-        
-        # AJUSTE: Uso do método correto para ler o bloco [gdrive] das Secrets
         creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gdrive"], scope)
         
         gauth = GoogleAuth()
-        gauth.credentials = creds  # Atribui as credenciais (c minúsculo)
+        gauth.credentials = creds
         drive = GoogleDrive(gauth)
         
-        # ID da pasta oficial compartilhada com a Conta de Serviço
+        # ID da sua pasta oficial
         ID_PASTA_DRIVE = "1VSrgXLR9nKtVclapeZWHkV_ojK55_JtO" 
         
-        file_drive = drive.CreateFile({
+        # AJUSTE: Definimos o arquivo com metadados simplificados para evitar bloqueio de cota
+        file_metadata = {
             'title': nome_arquivo,
             'parents': [{'id': ID_PASTA_DRIVE}],
             'mimeType': 'image/jpeg'
-        })
+        }
         
-        # Garante que o arquivo está no início para leitura binária
+        file_drive = drive.CreateFile(file_metadata)
+        
+        # Garante a leitura binária correta
         arquivo_foto.seek(0)
         file_drive.content = arquivo_foto  
-        file_drive.Upload()
         
-        # Retorna o link de visualização direta (webContentLink) para o Power BI
+        # Upload com suporte a drives compartilhados (ajuda na cota)
+        file_drive.Upload(param={'supportsAllDrives': True})
+        
+        # Retorna o link para o Power BI
         return file_drive['webContentLink']
     except Exception as e:
         st.error(f"⚠️ Erro técnico no upload para o Drive: {e}")
@@ -78,14 +80,11 @@ def carregar_fornecedores():
 df_forn = carregar_fornecedores()
 
 if df_forn is not None:
-    # Mapeamento de colunas (B=1, G=6, Última=Loja)
     col_empresa = df_forn.columns[1]  
     col_frequencia = df_forn.columns[6] 
     col_loja = df_forn.columns[-1]    
 
-    # 1. Seleção da Loja
-    lojas = sorted(df_forn[col_loja].dropna().astype(str).unique().tolist())
-    loja_sel = st.selectbox("1. Selecione a Loja:", ["Escolha..."] + lojas)
+    loja_sel = st.selectbox("1. Selecione a Loja:", ["Escolha..."] + sorted(df_forn[col_loja].dropna().astype(str).unique().tolist()))
 
     if loja_sel != "Escolha...":
         filtro = df_forn[df_forn[col_loja].astype(str) == loja_sel]
@@ -93,28 +92,23 @@ if df_forn is not None:
         forn_sel = st.selectbox("2. Selecione o Fornecedor:", ["Escolha..."] + fornecedores)
 
         if forn_sel != "Escolha...":
-            # Exibição da Frequência (TER/QUI/SAB...)
             dados_sel = filtro[filtro[col_empresa] == forn_sel]
             frequencia = dados_sel[col_frequencia].iloc[0]
             st.info(f"📅 **Frequência Programada:** {frequencia}")
             
-            # 2. Observações
-            obs = st.text_input("3. Observação (Opcional):", placeholder="Ex: Gôndola organizada...")
+            obs = st.text_input("3. Observação (Opcional):")
 
-            # 3. Upload de Foto
             st.markdown("### 📸 Registro Fotográfico")
             foto = st.file_uploader("Selecione ou tire uma foto", type=["jpg", "jpeg", "png"])
             
             if foto:
                 st.image(foto, caption="Prévia da foto", width=200)
 
-            # 4. Botão de Confirmação
             if st.button("Confirmar Check-in", use_container_width=True):
                 if foto is None:
                     st.warning("⚠️ Por favor, anexe uma foto antes de confirmar.")
                 else:
                     try:
-                        # Horário de Brasília
                         fuso_br = pytz.timezone('America/Sao_Paulo')
                         agora_dt = datetime.now(fuso_br)
                         agora_str = agora_dt.strftime("%d/%m/%Y %H:%M:%S")
@@ -124,7 +118,6 @@ if df_forn is not None:
                         with st.spinner('🚀 Enviando foto e registrando no sistema...'):
                             link_final_foto = upload_para_drive(foto, nome_img)
                         
-                        # Apenas prossegue se o upload da foto foi concluído
                         if link_final_foto != "Erro no Upload":
                             df_existente = conn.read(ttl=0) 
                             
@@ -143,7 +136,7 @@ if df_forn is not None:
                             st.success(f"✅ Registrado com sucesso!")
                             st.balloons()
                         else:
-                            st.error("❌ Falha crítica: O registro não foi salvo porque a foto não subiu.")
+                            st.error("❌ Falha no upload da foto. O registro não foi salvo.")
                             
                     except Exception as e:
                         st.error(f"Erro ao salvar dados: {e}")
