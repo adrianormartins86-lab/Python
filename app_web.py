@@ -6,6 +6,7 @@ import pytz
 import os
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
+from oauth2client.service_account import ServiceAccountCredentials
 
 # --- CONFIGURAÇÃO E LOGO ---
 USER_GITHUB = "adrianormartins86-lab"
@@ -15,19 +16,21 @@ URL_ICONE = f"https://raw.githubusercontent.com/{USER_GITHUB}/{REPO_GITHUB}/main
 
 st.set_page_config(page_title="Check-in Promotores", layout="centered", page_icon=URL_ICONE)
 
-# --- FUNÇÃO DE UPLOAD PARA O GOOGLE DRIVE (AJUSTADA PARA SECRETS) ---
+# --- FUNÇÃO DE UPLOAD PARA O GOOGLE DRIVE (CORRIGIDA) ---
 def upload_para_drive(arquivo_foto, nome_arquivo):
-    """Faz o upload para o Drive usando as Secrets e retorna o link direto"""
     try:
-        gauth = GoogleAuth()
+        # Define o escopo de acesso
         scope = ['https://www.googleapis.com/auth/drive']
         
-        # Autenticação via Conta de Serviço usando o bloco [gdrive] das Secrets
-        gauth.auth_method = 'service'
-        gauth.credentials = gauth.Credentials.from_json_dict(st.secrets["gdrive"], scope)
+        # Cria as credenciais usando o bloco [gdrive] das Secrets
+        # O segredo aqui é usar ServiceAccountCredentials diretamente
+        creds = ServiceAccountCredentials.from_json_dict(st.secrets["gdrive"], scope)
+        
+        gauth = GoogleAuth()
+        gauth.credentials = creds # "c" minúsculo aqui corrige o seu erro
         drive = GoogleDrive(gauth)
         
-        # ID extraído da sua URL: 1VSrgXLR9nKtVclapeZWHkV_ojK55_JtO
+        # ID da pasta extraído da sua URL
         ID_PASTA_DRIVE = "1VSrgXLR9nKtVclapeZWHkV_ojK55_JtO" 
         
         file_drive = drive.CreateFile({
@@ -38,10 +41,9 @@ def upload_para_drive(arquivo_foto, nome_arquivo):
         
         arquivo_foto.seek(0)
         file_drive.content = arquivo_foto  
-        
         file_drive.Upload()
         
-        # Retorna o link de visualização direta para usar no Power BI
+        # Retorna o link de visualização direta
         return file_drive['webContentLink']
     except Exception as e:
         st.error(f"Erro no upload para o Drive: {e}")
@@ -75,14 +77,11 @@ def carregar_fornecedores():
 df_forn = carregar_fornecedores()
 
 if df_forn is not None:
-    # Mapeamento de colunas (B=1, G=6, Última=Loja)
     col_empresa = df_forn.columns[1]  
     col_frequencia = df_forn.columns[6] 
     col_loja = df_forn.columns[-1]    
 
-    # 1. Seleção da Loja
-    lojas = sorted(df_forn[col_loja].dropna().astype(str).unique().tolist())
-    loja_sel = st.selectbox("1. Selecione a Loja:", ["Escolha..."] + lojas)
+    loja_sel = st.selectbox("1. Selecione a Loja:", ["Escolha..."] + sorted(df_forn[col_loja].dropna().astype(str).unique().tolist()))
 
     if loja_sel != "Escolha...":
         filtro = df_forn[df_forn[col_loja].astype(str) == loja_sel]
@@ -90,22 +89,18 @@ if df_forn is not None:
         forn_sel = st.selectbox("2. Selecione o Fornecedor:", ["Escolha..."] + fornecedores)
 
         if forn_sel != "Escolha...":
-            # Exibição da Frequência (TER/QUI/SAB...)
             dados_sel = filtro[filtro[col_empresa] == forn_sel]
             frequencia = dados_sel[col_frequencia].iloc[0]
             st.info(f"📅 **Frequência Programada:** {frequencia}")
             
-            # 2. Observações
-            obs = st.text_input("3. Observação (Opcional):", placeholder="Ex: Gôndola organizada...")
+            obs = st.text_input("3. Observação (Opcional):")
 
-            # 3. Upload de Foto
             st.markdown("### 📸 Registro Fotográfico")
             foto = st.file_uploader("Selecione ou tire uma foto", type=["jpg", "jpeg", "png"])
             
             if foto:
                 st.image(foto, caption="Prévia da foto", width=200)
 
-            # 4. Botão de Confirmação
             if st.button("Confirmar Check-in", use_container_width=True):
                 try:
                     fuso_br = pytz.timezone('America/Sao_Paulo')
@@ -118,7 +113,6 @@ if df_forn is not None:
                         with st.spinner('Enviando foto para o Google Drive...'):
                             link_final_foto = upload_para_drive(foto, nome_img)
                     
-                    # Atualização do Google Sheets
                     df_existente = conn.read(ttl=0) 
                     
                     novo_dado = pd.DataFrame([{
