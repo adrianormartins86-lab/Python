@@ -45,10 +45,10 @@ def carregar_fornecedores():
 df_forn = carregar_fornecedores()
 
 if df_forn is not None:
-    # Mapeamento CORRIGIDO baseado na sua planilha
-    col_empresa = df_forn.columns[1]   # Coluna B (Fornecedor)
-    col_frequencia = df_forn.columns[5] # Coluna G (Dias da Semana - TER/QUI)
-    col_loja = df_forn.columns[-1]     # Última Coluna (Loja)
+    # --- MAPEAMENTO AJUSTADO ---
+    col_empresa = df_forn.columns[1]    # Coluna B
+    col_frequencia = df_forn.columns[6]  # AJUSTE: Coluna G (Frequência de Visita)
+    col_loja = df_forn.columns[-1]      # Última Coluna (Loja)
 
     # 1. Seleção da Loja
     lojas = sorted(df_forn[col_loja].dropna().astype(str).unique().tolist())
@@ -60,7 +60,7 @@ if df_forn is not None:
         forn_sel = st.selectbox("2. Selecione o Fornecedor:", ["Escolha..."] + fornecedores)
 
         if forn_sel != "Escolha...":
-            # --- EXIBIÇÃO CORRETA DA FREQUÊNCIA (TER/QUI) ---
+            # --- EXIBIÇÃO DA FREQUÊNCIA (TER/QUI/SAB...) ---
             dados_sel = filtro[filtro[col_empresa] == forn_sel]
             frequencia_info = dados_sel[col_frequencia].iloc[0]
             st.info(f"📅 **Frequência de Visita:** {frequencia_info}")
@@ -88,7 +88,7 @@ if df_forn is not None:
                         with open(caminho_completo, "wb") as f:
                             f.write(foto.getbuffer())
                     
-                    # Envio para o Sheets (SEM a coluna de frequência)
+                    # Envio para o Sheets (SEM a coluna de frequência, conforme solicitado)
                     df_existente = conn.read(ttl=0) 
                     novo_dado = pd.DataFrame([{
                         "Data": agora_str, 
